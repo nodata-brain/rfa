@@ -2,16 +2,17 @@ package rfa
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	//"golang.org/x/oauth2"
 	//"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
+	//"google.golang.org/api/option"
+	"github.com/ChimeraCoder/anaconda"
 
 	//"cloud.google.com/go/storage"
-	"cloud.google.com/go/vision/apiv1"
+	"google.golang.org/api/vision/v1"
 )
 
 func main() {
@@ -19,38 +20,32 @@ func main() {
 }
 
 func rfa() {
+	getTweet()
 	ocr("./sample.JPG")
+}
 
+func getTweet() {
+	anaconda.SetConsumerKey(os.Getenv("Key"))
+	anaconda.SetConsumerSecret(os.Getenv("Sec"))
+	api := anaconda.NewTwitterApi(os.Getenv("Token"), os.Getenv("TokenSec"))
+
+	v := url.Values{}
+	v.Add("user_id", "SugitaniDev")
+
+	timeline, err := api.GetUserTimeline(v)
+	if err != nil {
+		return
+	}
+
+	log.Println(timeline)
 }
 
 func ocr(filename string) {
 	ctx := context.Background()
 
-	apiKey := "<API_KEY>"
-	apiKeyOption := option.WithAPIKey(apiKey)
-
-	client, err := vision.NewImageAnnotatorClient(ctx, apiKeyOption)
-	//client, err := vision.NewImageAnnotatorClient(ctx)
+	visionService, err := vision.NewService(ctx)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return
 	}
-
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Fatalf("Failed to read file: %v", err)
-	}
-	defer file.Close()
-	image, err := vision.NewImageFromReader(file)
-	if err != nil {
-		log.Fatalf("Failed to create image: %v", err)
-	}
-
-	texts, err := client.DetectTexts(ctx, image, nil, 10)
-	if err != nil {
-		log.Fatalf("Failed to detect labels: %v", err)
-	}
-
-	for _, text := range texts {
-		fmt.Println(text.Description)
-	}
+	log.Println(visionService)
 }

@@ -20,17 +20,17 @@ func main() {
 }
 
 func rfa() {
-	getTweet()
+	getTweet("test")
 	ocr("./sample.JPG")
 }
 
-func getTweet() {
+func getTweet(usr string) {
 	anaconda.SetConsumerKey(os.Getenv("Key"))
 	anaconda.SetConsumerSecret(os.Getenv("Sec"))
 	api := anaconda.NewTwitterApi(os.Getenv("Token"), os.Getenv("TokenSec"))
 
 	v := url.Values{}
-	v.Add("user_id", "SugitaniDev")
+	v.Add("user_id", usr)
 
 	timeline, err := api.GetUserTimeline(v)
 	if err != nil {

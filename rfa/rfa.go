@@ -2,13 +2,14 @@ package rfa
 
 import (
 	"context"
-	"fmt"
+	//"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
@@ -17,12 +18,17 @@ import (
 	pb "google.golang.org/genproto/googleapis/cloud/vision/v1"
 )
 
+type Rf struct {
+	Ot  string
+	Cal string
+	Run string
+}
+
 func Rfa(w http.ResponseWriter, r *http.Request) {
 	file := getTweet("")
+	rf := Rf{}
 	texts := ocr(file.Name())
-	for _, text := range texts {
-		fmt.Fprintf(w, text.Description)
-	}
+	rf.getRfaData(w, texts)
 	defer file.Close()
 }
 
@@ -91,4 +97,18 @@ func ocr(filename string) []*pb.EntityAnnotation {
 	}
 
 	return texts
+}
+
+func (rf *Rf) getRfaData(w http.ResponseWriter, texts []*pb.EntityAnnotation) {
+	for i, text := range regexp.MustCompile("\r\n|\n\r|\n|\r").Split(texts[0].Description, -1) {
+		if i == 3 {
+			rf.Ot = text
+		}
+		if i == 5 {
+			rf.Cal = text
+		}
+		if i == 7 {
+			rf.Run = text
+		}
+	}
 }

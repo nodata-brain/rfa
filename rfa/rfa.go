@@ -27,17 +27,28 @@ type Rf struct {
 
 func Rfa(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	file := getTweet("")
+	file, err := getTweet("")
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	rf := Rf{}
-	texts := ocr(ctx, file.Name())
+	texts, err := ocr(ctx, file.Name())
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	rf.getRfaData(w, texts)
-	rf.insertData(ctx)
-	log.Println(rf)
+	err = rf.insertData(ctx)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	defer file.Close()
 }
 
-func getTweet(usr string) *os.File {
+func getTweet(usr string) (*os.File, error) {
 	anaconda.SetConsumerKey(os.Getenv("Key"))
 	anaconda.SetConsumerSecret(os.Getenv("Sec"))
 	api := anaconda.NewTwitterApi(os.Getenv("Token"), os.Getenv("TokenSec"))
@@ -50,22 +61,25 @@ func getTweet(usr string) *os.File {
 	url := getImg(timeline)
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	file := createTemp("save")
+	file, TempErr := createTemp("save")
+	if TempErr != nil {
+		return nil, TempErr
+	}
 
 	io.Copy(file, resp.Body)
-	return file
+	return file, nil
 
 }
-func createTemp(file string) *os.File {
+func createTemp(file string) (*os.File, error) {
 	tmpfile, err := ioutil.TempFile("", file)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return tmpfile
+	return tmpfile, nil
 }
 
 func getImg(timeline []anaconda.Tweet) string {
@@ -85,29 +99,33 @@ func getPostTime(timeline []anaconda.Tweet) time.Time {
 	return t.In(loc)
 }
 
-func ocr(ctx context.Context, filename string) []*pb.EntityAnnotation {
+func ocr(ctx context.Context, filename string) ([]*pb.EntityAnnotation, error) {
 
 	client, err := vision.NewImageAnnotatorClient(ctx)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
+		return nil, err
 	}
 
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("Failed to read file: %v", err)
+		return nil, err
 	}
 	defer file.Close()
 	image, err := vision.NewImageFromReader(file)
 	if err != nil {
 		log.Fatalf("Failed to create image: %v", err)
+		return nil, err
 	}
 
 	texts, err := client.DetectTexts(ctx, image, nil, 10)
 	if err != nil {
 		log.Fatalf("Failed to detect labels: %v", err)
+		return nil, err
 	}
 
-	return texts
+	return texts, nil
 }
 
 func (rf *Rf) getRfaData(w http.ResponseWriter, texts []*pb.EntityAnnotation) {

@@ -2,7 +2,6 @@ package rfa
 
 import (
 	"context"
-	//"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -10,10 +9,12 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
 
+	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/vision/apiv1"
 	pb "google.golang.org/genproto/googleapis/cloud/vision/v1"
 )
@@ -25,10 +26,14 @@ type Rf struct {
 }
 
 func Rfa(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	file := getTweet("")
 	rf := Rf{}
-	texts := ocr(file.Name())
+	texts := ocr(ctx, file.Name())
 	rf.getRfaData(w, texts)
+	rf.insertData(ctx)
+	log.Println(rf)
+
 	defer file.Close()
 }
 
@@ -67,14 +72,20 @@ func getImg(timeline []anaconda.Tweet) string {
 	return timeline[0].Entities.Media[0].Media_url_https
 }
 
-func getTime(timeline []anaconda.Tweet) time.Time {
+func getTime() string {
+	loc, _ := time.LoadLocation("Asia/Tokyo")
+	n := time.Now().In(loc)
+	f := n.Format("200601021404")
+	return f
+}
+
+func getPostTime(timeline []anaconda.Tweet) time.Time {
 	loc, _ := time.LoadLocation("Asia/Tokyo")
 	t, _ := time.Parse("Mon Jan 02 15:04:05 -0700 2006", timeline[0].CreatedAt)
 	return t.In(loc)
 }
 
-func ocr(filename string) []*pb.EntityAnnotation {
-	ctx := context.Background()
+func ocr(ctx context.Context, filename string) []*pb.EntityAnnotation {
 
 	client, err := vision.NewImageAnnotatorClient(ctx)
 	if err != nil {
@@ -111,4 +122,33 @@ func (rf *Rf) getRfaData(w http.ResponseWriter, texts []*pb.EntityAnnotation) {
 			rf.Run = text
 		}
 	}
+}
+
+type Task struct {
+	Cal float64
+}
+
+func (rf *Rf) insertData(ctx context.Context) error {
+
+	re := regexp.MustCompile(`\d+\.?\d*|\.\d+`).FindString(rf.Cal)
+	data, err := strconv.ParseFloat(re, 64)
+	if err != nil {
+		return err
+	}
+
+	client, err := firestore.NewClient(ctx, os.Getenv("GCP_PROJECT"))
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	task := Task{Cal: data}
+
+	states := client.Collection("Rfa")
+	t := getTime()
+	ny := states.Doc(t)
+	_, nyerr := ny.Create(ctx, task)
+	if nyerr != nil {
+		return nyerr
+	}
+	return nil
 }
